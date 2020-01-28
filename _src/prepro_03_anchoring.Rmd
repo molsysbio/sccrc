@@ -1,0 +1,227 @@
+---
+title: Seurat merging and anchoring
+author: Florian Uhlitz
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+params: 
+  sample_names: ["epi_p007t", "epi_p008t"]
+  ref_samples: ["epi_p007t", "epi_p008t"]
+  rel_comp: 10
+  max_cells: 2000
+  anchoring: TRUE
+---
+
+
+```{r chunk000}
+
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+
+```
+
+```{r chunk010}
+
+library(magrittr)
+library(tidyverse)
+library(readxl)
+library(stringr)
+library(Seurat)
+library(cowplot)
+library(viridis)
+library(knitr)
+reticulate::use_condaenv("base")
+
+sample_names <- c(
+  "epi_p009t1_strict", "epi_p009t2_strict", "epi_p013t_strict", 
+  "epi_p009ot0_strict", "epi_p009ot2_strict", "epi_p013ot0_strict", 
+  "epi_p013ot3_strict"
+)
+
+ref_samples <- c("epi_p009t1_strict", "epi_p009t2_strict", "epi_p013t_strict")
+#ref_samples <- sample_names[str_detect(sample_names, "[0-9]t")]
+rel_comp <- 10
+max_cells <- 2000
+anchoring <- FALSE
+
+sample_names <- params$sample_names
+ref_samples <- params$ref_samples
+rel_comp <- params$rel_comp
+max_cells <- params$max_cells
+anchoring <- params$anchoring
+
+#if (is.null(ref_samples)) ref_samples <- sample_names
+
+## global vars
+theme_cowplot2 <- function(...) {
+  theme_cowplot(...) %+replace%
+    theme(strip.background = element_blank(),
+          panel.border = element_rect(linetype = 1, size = 1, color = "black"))
+}
+
+scale_n_reduce <- function(seu_obj, rcomp = 1:rel_comp, scale = T,
+                           vtr = c("pMT", "CC.Diff"),
+                           npcs = 50) {
+  if (scale) seu_obj <- SCTransform(seu_obj, vars.to.regress = vtr, verbose = F, assay = "spliced")
+  if (all(is.na(GetAssayData(seu_obj, slot = "scale.data")))) seu_obj <- ScaleData(seu_obj, do.scale = F, do.center = F, scale.max = Inf)
+  seu_obj <- RunPCA(seu_obj, verbose = F, npcs = npcs)
+
+  ## calc clusters and dim reds
+  seu_obj <- seu_obj %>%
+    FindNeighbors(dims = rcomp) %>%
+    FindClusters(verbose = F, resolution = 0.5) %>%
+    FindClusters(verbose = F, resolution = 0.8) %>%
+    FindClusters(verbose = F, resolution = 1) %>%
+    FindClusters(verbose = F, resolution = 2) %>%
+    RunTSNE(dims = rcomp) %>%
+    RunUMAP(dims = rcomp)
+
+  return(seu_obj)
+}
+
+## Cell cycle
+cc.genes <- read_lines("_data/signatures/regev_lab_cell_cycle_genes.txt")
+s.genes <- cc.genes[1:43] ## s-phase genes
+g2m.genes <- cc.genes[44:97] ## g2m transition genes
+
+score_cc <- function(seu_obj, nbin) {
+  seu_obj <- CellCycleScoring(seu_obj, s.genes, g2m.genes, nbin = nbin)
+  seu_obj@meta.data$CC.Diff <- seu_obj@meta.data$S.Score - seu_obj@meta.data$G2M.Score
+  return(seu_obj)
+}
+
+```
+
+# `r paste0(sample_names, collapse = " + ")`
+
+## Merged samples
+
+```{r chunk020, fig.height=10, fig.width=10}
+
+sc_samples_metadata <- read_excel("_data/sc_samples_metadata.xlsx", sheet = 1, skip = 1)
+
+add_rna_assay <- function(seu_obj) {
+  seu_obj@assays$RNA <- seu_obj@assays$spliced
+  return(seu_obj)
+}
+
+seu_list <- paste0("_data/_patients/computed/raw/seu_sub_", 
+                   c(sample_names), ".rds") %>% 
+  lapply(read_rds) %>% 
+  lapply(add_rna_assay) %>% 
+  set_names(sample_names)
+
+## simple sample merge (no batch correction)
+seu_merge <- merge(seu_list[[1]], y = do.call(c,seu_list[-1]), merge.data = T)
+
+score_scale_n_reduce <- . %>% 
+  FindVariableFeatures %>% 
+  scale_n_reduce(scale = F)
+
+seu_merge <- score_scale_n_reduce(seu_merge)
+
+seu_merge$sample_origin <- NULL
+
+update_meta <- . %>% 
+  as.data.frame %>% 
+  as_tibble %>% 
+  mutate(sample_id = str_replace_all(sample_id, "p001", "p007")) %>% 
+  left_join(sc_samples_metadata, by = "sample_id") %>% 
+  as.data.frame %>% 
+  set_rownames(.$cell_id)
+
+seu_merge@meta.data <- update_meta(seu_merge@meta.data)
+
+write_rds(seu_merge, paste0("_data/_patients/computed/anchored/seu_merge_", 
+                            substr(paste0(sample_names, collapse = "_"), 1, 200),
+                            ".rds"))
+
+```
+
+```{r chunk030}
+
+p1 <- DimPlot(seu_merge, group.by = "sample_origin") + NoAxes() + coord_fixed()
+p2 <- DimPlot(seu_merge, group.by = "source_type") + NoAxes() + coord_fixed()
+p3 <- DimPlot(seu_merge, group.by = "sample_passage") + NoAxes() + coord_fixed()
+p4 <- DimPlot(seu_merge, group.by = "Phase") + NoAxes() + coord_fixed()
+
+plot_grid(p1, p2, p3, p4, ncol = 2)
+
+DimPlot(seu_merge, split.by = "sample_id", group.by = "Phase", ncol = round(sqrt(length(sample_names)))+1) + NoAxes() + coord_fixed()
+
+DimPlot(seu_merge, group.by = "sct_cell_type", split.by = "sample_origin") + NoAxes() + coord_fixed()
+DimPlot(seu_merge, group.by = "source_id") + NoAxes() + coord_fixed()
+
+DimPlot(seu_merge, group.by = "main_cell_type", cols = colorblindr::palette_OkabeIto[1:3], pt.size = 0.01) + NoAxes() + coord_fixed()
+
+```
+
+## Anchored samples
+
+```{r chunk040}
+
+remove_assays <- function(seu_obj) {
+  seu_obj@assays$SCT <- NULL
+  seu_obj@assays$spliced <- NULL
+  seu_obj@assays$unspliced <- NULL
+  seu_obj@assays$ambiguous <- NULL
+  DefaultAssay(seu_obj) <- "RNA"
+  return(seu_obj)
+}
+
+reduce_metadata <- function(seu_obj) {
+  seu_obj@meta.data <- seu_obj@meta.data[,c("cell_id", "nCount_SCT", "nFeature_SCT", "pMT", "sample_id")]
+  return(seu_obj)
+}
+
+
+if (anchoring) {
+
+  seu_list <- lapply(seu_list, remove_assays)
+  seu_list <- lapply(seu_list, reduce_metadata)
+  seu_list <- lapply(seu_list, score_cc, nbin = 16)
+  seu_list <- lapply(seu_list, SCTransform, vars.to.regress = c("pMT", "CC.Diff"), verbose = FALSE)
+  # seu_list <- lapply(seu_list, RunPCA, verbose = F)
+  
+  #write_rds(seu_list, paste0("_data/_patients/computed/anchored/seu_list_", 
+  #                           substr(paste0(sample_names, collapse = "_"), 1, 200),
+  #                           ".rds"))
+  ## anchor-based-correction (abc)
+  seu_features <- SelectIntegrationFeatures(seu_list, nfeatures = 3000)
+  references <- which(names(seu_list) %in% ref_samples)
+  seu_list <- PrepSCTIntegration(seu_list, anchor.features = seu_features)
+  seu_anchors <- FindIntegrationAnchors(seu_list, normalization.method = "SCT", 
+                                        anchor.features = seu_features, reference = references)
+  seu_abc <- IntegrateData(seu_anchors, normalization.method = "SCT")
+  seu_abc <- scale_n_reduce(seu_abc, scale = F)
+  # seu_abc$sample_origin <- NULL
+  seu_abc@meta.data <- update_meta(seu_abc@meta.data)
+  
+  write_rds(seu_abc, paste0("_data/_patients/computed/anchored/seu_abc_", 
+                            substr(paste0(sample_names, collapse = "_"), 1, 200),
+                            ".rds"))
+ 
+}
+
+```
+
+```{r chunk050}
+
+if (anchoring) {
+  
+  p1 <- DimPlot(seu_abc, group.by = "source_id") + NoAxes() + coord_fixed()
+  p2 <- DimPlot(seu_abc, group.by = "source_type") + NoAxes() + coord_fixed()
+  p3 <- DimPlot(seu_abc, group.by = "sample_passage") + NoAxes() + coord_fixed()
+  p4 <- DimPlot(seu_abc, group.by = "Phase") + NoAxes() + coord_fixed()
+  
+  plot_grid(p1, p2, p3, p4, ncol = 2)
+  
+  DimPlot(seu_abc, split.by = "sample_id", group.by = "Phase", 
+          ncol = round(sqrt(length(sample_names)))+1) + 
+    NoAxes() + coord_fixed()
+  
+}
+
+```

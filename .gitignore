@@ -1,0 +1,17 @@
+.Rhistory
+*.RData
+*.jpg
+*.png
+*.pdf
+*.rds
+*cache*
+*.loom
+*.bam
+*.bam.ai
+*.h5ad
+*.gtf
+.htaccess
+.htpasswd
+.Rproj.user*
+*.ipynb_*
+.Rproj.user

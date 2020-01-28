@@ -1,0 +1,27 @@
+WANG_NFKB_TARGETS
+> Representative genes up-regulated in C2C12 cells (myoblast) lacking NFkB activity due to expression of a super repressor form of NFKBIA [GeneID=4792].
+ACTC1
+APLNR
+ATP2A1
+CASP7
+CAV3
+CHRNG
+CISH
+CMA1
+CSRP3
+FOXA2
+HOXA1
+ITGB5
+KRT36
+MEF2BNB-MEF2B
+MIOX
+MYH1
+MYH7
+MYL4
+NOTCH1
+RARG
+SH3BP1
+TNNC1
+TNNI1
+TNNT1
+TRAF5

@@ -1,0 +1,678 @@
+---
+title: Seurat QC
+author: Florian Uhlitz
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+params: 
+  sample_name: NULL
+  loom_file: NULL
+  nFeature_lower: 500
+  nFeature_upper: 5000
+  nCount_lower: 1000
+  nCount_upper: 50000
+  nFrac_s_lower: 0.3
+  nFrac_s_upper: 0.9
+  nFrac_u_lower: 0.1
+  nFrac_u_upper: 0.7
+  nFrac_a_lower: 0
+  nFrac_a_upper: 0.2
+  pMT_lower: 0
+  pMT_upper: 0.8
+  pHB_lower: 0
+  pHB_upper: 0.1
+  rel_comp: 10
+  cluster_res: 2
+---
+
+```{r chunk000}
+
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(echo = F, warning = F, message = F)
+
+```
+
+```{r chunk005}
+
+library(magrittr)
+library(tidyverse)
+library(readxl)
+library(stringr)
+library(Seurat)
+library(SeuratWrappers)
+library(velocyto.R)
+library(cowplot)
+library(viridis)
+library(knitr)
+library(sctransform)
+library(parallel)
+reticulate::use_condaenv("base")
+
+# ## debugging example pars
+# sample_name <- "p009ot0"
+# loom_file <- "_data/velocyto/p009ot0.loom"
+# nFeature_lower <- 100
+# nFeature_upper <- 10000
+# nCount_lower <- 500
+# nCount_upper <- 50000
+# nFrac_s_lower <- 0.3
+# nFrac_s_upper <- 0.9
+# nFrac_u_lower <- 0.1
+# nFrac_u_upper <- 0.7
+# nFrac_a_lower <- 0
+# nFrac_a_upper <- 0.2
+# pMT_lower <- 0
+# pMT_upper <- 0.8
+# pHB_lower <- 0
+# pHB_upper <- 0.1
+# rel_comp <- 10
+# cluster_res <- 2
+
+theme_set(theme_cowplot())
+
+sample_name <- params$sample_name
+loom_file <- params$loom_file
+nFeature_lower <- params$nFeature_lower
+nFeature_upper <- params$nFeature_upper
+nCount_lower <- params$nCount_lower
+nCount_upper <- params$nCount_upper
+nFrac_s_lower <- params$nFrac_s_lower
+nFrac_s_upper <- params$nFrac_s_upper
+nFrac_u_lower <- params$nFrac_u_lower
+nFrac_u_upper <- params$nFrac_u_upper
+nFrac_a_lower <- params$nFrac_a_lower
+nFrac_a_upper <- params$nFrac_a_upper
+pMT_lower <- params$pMT_lower
+pMT_upper <- params$pMT_upper
+pHB_lower <- params$pHB_lower
+pHB_upper <- params$pHB_upper
+rel_comp <- params$rel_comp
+cluster_res <- params$cluster_res
+ 
+```
+
+# `r sample_name`
+
+## Data loading and qc
+
+Velocyto counts are loaded
+
+```{r chunk010}
+
+## load velocyto loom matrices with seurat
+ldat <- ReadVelocity(loom_file)
+
+## fix colnames and rownames
+ldat <- lapply(ldat, function(x) {
+  set_colnames(x, str_remove_all(colnames(x), "x")) %>%
+    .[unique(rownames(.)),] %>% 
+    set_rownames(str_remove_all(rownames(.), "GRCh38_______"))
+})
+
+## shortcuts
+emat <- ldat$spliced
+nmat <- ldat$unspliced
+amat <- ldat$ambiguous
+
+seu_raw <- as.Seurat(x = ldat)
+
+count_stats <- tibble(
+  nCount_s = colSums(emat), nCount_u = colSums(nmat), nCount_a = colSums(amat), 
+  nCount_t = nCount_s+nCount_u+nCount_a, 
+  nFrac_s = nCount_s/nCount_t, nFrac_u = nCount_u/nCount_t, nFrac_a = nCount_a/nCount_t, 
+  cell_id = colnames(emat)
+)
+
+## calc mitochondrial, hemoglobin and ribo gene counts
+add_qc <- function(seu_obj) {
+  mito.genes <- grep(pattern = "^MT-", x = rownames(seu_obj), value = T)
+  hb.genes <- grep(pattern = "^HBA|^HBB", x = rownames(seu_obj), value = T)
+  rp.genes <- grep(pattern = "^RPS|^RPL", x = rownames(seu_obj), value = T)
+  percent.mito <- Matrix::colSums(GetAssayData(seu_obj, "counts")[mito.genes, ])/Matrix::colSums(GetAssayData(seu_obj, "counts"))
+  percent.hb <- Matrix::colSums(GetAssayData(seu_obj, "counts")[hb.genes, ])/Matrix::colSums(GetAssayData(seu_obj, "counts"))
+  percent.rp <- Matrix::colSums(GetAssayData(seu_obj, "counts")[rp.genes, ])/Matrix::colSums(GetAssayData(seu_obj, "counts"))
+  
+  ## AddMetaData to seurat object
+  seu_obj <- AddMetaData(seu_obj, round(percent.mito, 3), "pMT")
+  seu_obj <- AddMetaData(seu_obj, round(percent.hb, 3), "pHB")
+  seu_obj <- AddMetaData(seu_obj, round(percent.rp, 3), "pRP")
+  
+  seu_obj@meta.data <- seu_obj@meta.data %>% 
+    as_tibble(rownames = "cell_id") %>% 
+    left_join(count_stats, by = "cell_id") %>% 
+    as.data.frame() %>% 
+    set_rownames(.$cell_id)
+  
+  return(seu_obj)
+}
+
+seu_raw <- add_qc(seu_raw)
+
+```
+
+## Data Filtering 
+
+```{r chunk020}
+
+print(params)
+
+qc_std_plot_helper <- function(x) x + 
+  scale_color_viridis() +
+  geom_point(size = 0.01, alpha = 0.3)
+
+qc_std_plot <- function(seu_obj) {
+  qc_data <- as_tibble(FetchData(seu_obj, c("nCount_spliced", "nFeature_spliced", "pMT", "pHB", "pRP", "nFrac_s", "nFrac_u", "nFrac_a")))
+  plot_grid(
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), log2(nFeature_spliced), color = nFrac_s))) + 
+      geom_hline(yintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_hline(yintercept = log2(nFeature_upper), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), log2(nFeature_spliced), color = nFrac_u))) + 
+      geom_hline(yintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_hline(yintercept = log2(nFeature_upper), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), log2(nFeature_spliced), color = nFrac_a))) + 
+      geom_hline(yintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_hline(yintercept = log2(nFeature_upper), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), log2(nFeature_spliced), color = pMT))) + 
+      geom_hline(yintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_hline(yintercept = log2(nFeature_upper), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), log2(nFeature_spliced), color = pHB))) + 
+      geom_hline(yintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_hline(yintercept = log2(nFeature_upper), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(nCount_spliced, nFeature_spliced, color = pMT))) + 
+      geom_hline(yintercept = nFeature_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = nFeature_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = nCount_lower, color = "red", linetype = 2) +
+      geom_vline(xintercept = nCount_upper, color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), nFrac_s, color = nFeature_spliced))) + 
+      geom_hline(yintercept = nFrac_s_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = nFrac_s_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), nFrac_u, color = nFeature_spliced))) + 
+      geom_hline(yintercept = nFrac_u_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = nFrac_u_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), nFrac_a, color = nFeature_spliced))) + 
+      geom_hline(yintercept = nFrac_a_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = nFrac_a_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), pMT, color = nFeature_spliced))) + 
+      geom_hline(yintercept = pMT_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = pMT_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nCount_spliced), pHB, color = nFeature_spliced))) + 
+      geom_hline(yintercept = pHB_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = pHB_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nFeature_spliced), pMT, color = nCount_spliced))) + 
+      geom_hline(yintercept = pMT_lower, color = "red", linetype = 2) +
+      geom_hline(yintercept = pMT_upper, color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nFeature_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nFeature_spliced), pRP, color = pMT))) + 
+      geom_vline(xintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nFeature_upper), color = "red", linetype = 2),
+    qc_std_plot_helper(ggplot(qc_data, aes(log2(nFeature_spliced), pRP, color = pHB))) + 
+      geom_vline(xintercept = log2(nFeature_lower), color = "red", linetype = 2) +
+      geom_vline(xintercept = log2(nFeature_upper), color = "red", linetype = 2),
+    ggplot(gather(qc_data, key, value), aes(key, value)) +
+      geom_violin() +
+      facet_wrap(~key, scales = "free", ncol = 4),
+    ncol = 3, align = "hv"
+  )
+}
+
+```
+
+### Before filtering
+
+```{r chunk030, fig.width=14, fig.height=16}
+
+qc_std_plot(seu_raw)
+# ggsave(paste0("_fig/p_qc_", sample_name, ".png"), width = 10, height = 7)
+seu_raw
+
+```
+
+### After filtering
+
+```{r chunk040, fig.width=14, fig.height=16}
+
+seu_raw <- seu_raw %>% 
+  SubsetData(subset.name = "nFeature_spliced", low.threshold = nFeature_lower, high.threshold = nFeature_upper) %>% 
+  SubsetData(subset.name = "nCount_spliced", low.threshold = nCount_lower, high.threshold = nCount_upper) %>% 
+  SubsetData(subset.name = "pMT", high.threshold = pMT_upper) %>% 
+  SubsetData(subset.name = "pHB", high.threshold = pHB_upper) %>% 
+  SubsetData(subset.name = "nFrac_s", low.threshold = nFrac_s_lower, high.threshold = nFrac_s_upper) %>% 
+  SubsetData(subset.name = "nFrac_u", low.threshold = nFrac_u_lower, high.threshold = nFrac_u_upper) %>% 
+  SubsetData(subset.name = "nFrac_a", low.threshold = nFrac_a_lower, high.threshold = nFrac_a_upper)
+
+qc_std_plot(seu_raw)
+seu_raw
+
+```
+
+## Data normalisation 
+
+```{r chunk050}
+
+## normalise data with SC transform and find variable features
+seu_raw <- SCTransform(seu_raw, verbose = F, assay = "spliced")
+
+```
+
+### Cell cycle scoring
+
+```{r chunk060}
+
+## Cell cycle
+cc.genes <- read_lines("_data/signatures/regev_lab_cell_cycle_genes.txt")
+s.genes <- cc.genes[1:43] ## s-phase genes
+g2m.genes <- cc.genes[44:97] ## g2m transition genes
+
+score_cc <- function(seu_obj) {
+  seu_obj <- CellCycleScoring(seu_obj, s.genes, g2m.genes)
+  seu_obj@meta.data$CC.Diff <- seu_obj@meta.data$S.Score - seu_obj@meta.data$G2M.Score
+  return(seu_obj)
+}
+
+seu_raw <- score_cc(seu_raw)
+
+FeatureScatter(seu_raw, "G2M.Score", "S.Score", group.by = "Phase", pt.size = .1) +
+  coord_fixed(ratio = 1)
+
+```
+
+## Data scaling and dimensionality reduction 
+
+```{r chunk070}
+
+## raw object
+scale_n_reduce <- function(seu_obj, rcomp = 1:rel_comp, scale = T,
+                           vtr = c("pMT", "CC.Diff"),
+                           npcs = 50) {
+  if (scale) seu_obj <- SCTransform(seu_obj, vars.to.regress = vtr, verbose = F, assay = "spliced")
+  if (all(is.na(GetAssayData(seu_obj, slot = "scale.data")))) seu_obj <- ScaleData(seu_obj, do.scale = F, do.center = F, scale.max = Inf)
+  seu_obj <- RunPCA(seu_obj, verbose = F, npcs = npcs)
+
+  ## calc clusters and dim reds
+  seu_obj <- seu_obj %>%
+    FindNeighbors(dims = rcomp) %>%
+    FindClusters(verbose = F, resolution = 0.5) %>%
+    FindClusters(verbose = F, resolution = 0.8) %>%
+    FindClusters(verbose = F, resolution = 1) %>%
+    FindClusters(verbose = F, resolution = 2) %>%
+    RunTSNE(dims = rcomp) %>%
+    RunUMAP(dims = rcomp)
+
+  return(seu_obj)
+}
+
+seu_raw <- scale_n_reduce(seu_raw, scale = T)
+
+```
+
+### Elbow plot
+
+```{r chunk080}
+
+ElbowPlot(seu_raw) + geom_vline(xintercept = rel_comp+0.5) + labs(title = "normalized data")
+
+```
+
+### Cell cycle phase
+
+```{r chunk090}
+
+DimPlot(seu_raw, group.by = "Phase") + NoAxes() + coord_fixed()
+
+```
+
+## Louvain clusters
+
+```{r chunk120}
+
+cluster_feature <- paste0(DefaultAssay(seu_raw), "_snn_res.", cluster_res)
+
+seu_raw <- AddMetaData(seu_raw, metadata = FetchData(seu_raw, cluster_feature) %>% 
+  as_tibble(rownames = "cell_id") %>% 
+  deframe, col.name = "snn_cluster")
+
+Idents(seu_raw) <- seu_raw$snn_cluster
+
+seu_raw <- BuildClusterTree(seu_raw)
+
+```
+
+```{r chunk130}
+
+DimPlot(seu_raw, pt.size = 0.1, label = T) + coord_fixed() + NoAxes()
+
+```
+
+## Cluster marker genes
+
+```{r chunk140}
+
+error_handling <- function(x) {
+  if (!is.data.frame(x)) x <- set_rownames(data.frame(p_val = NA), "no_sig_genes")
+  return(x)
+}
+
+snn_markers <- parallel::mclapply(unique(seu_raw$snn_cluster), function(x) FindMarkers(seu_raw, ident.1 = x, only.pos = T, logfc.threshold = 0.25), mc.cores = parallel::detectCores()) %>% 
+  lapply(error_handling) %>% 
+  lapply(as_tibble, rownames = "gene") %>% 
+  setNames(unique(seu_raw$snn_cluster)) %>% 
+  bind_rows(.id = "cluster")
+
+spread_markers <- . %>% 
+  filter(!(gene %in% grep(pattern = "^MT-", x = rownames(seu_raw), value = T))) %>%
+  group_by(cluster) %>% 
+  slice(1:100) %>% 
+  mutate(rank = row_number(p_val_adj)) %>%
+  distinct(cluster, gene, rank) %>% 
+  spread(cluster, gene, fill = "")
+  
+kable(spread_markers(snn_markers))  
+
+```
+
+### separation of epithelial, stromal and immune cells
+
+```{r chunk150}
+
+HCA_epi <- read_excel("_data/signatures/regev-colon-mmc2.xlsx", sheet = 1)
+HCA_str <- read_excel("_data/signatures/regev-colon-mmc2.xlsx", sheet = 2)
+HCA_imm <- read_excel("_data/signatures/regev-colon-mmc2.xlsx", sheet = 3)
+
+HCA_marker <- bind_rows(HCA_epi, HCA_str, HCA_imm) %>% 
+  mutate(ident = str_remove_all(ident, " [0-9]$"))
+
+HCA_meta <- read_excel("_data/signatures/regev-colon-mmc2.xlsx", sheet = 6)
+
+get_sets <- function(superset) {
+  filter(HCA_meta, Name == superset)$`Cell subsets` %>% 
+    str_split(", ") %>% 
+    unlist %>% 
+    str_remove_all(" [0-9]$")
+}
+
+top_sets <- c("E.Epithelial", "F.Stromal", "I.Immune")
+epi_sets <- get_sets("E.Epithelial")
+str_sets <- get_sets("F.Stromal")
+imm_sets <- get_sets("I.Immune")
+
+get_marker_mat <- function(sets, min.alpha = 0, n.slice = 20) {
+  HCA_marker %>% 
+    filter(ident %in% sets) %>% 
+    filter(alpha > min.alpha) %>% 
+    mutate(ident = str_remove_all(ident, "E\\.|F\\.|I\\.")) %>% 
+    select(ident, gene) %>% 
+    group_by(ident) %>% 
+    slice(1:n.slice) %>% 
+    ungroup %>% 
+    mutate(expression = 1) %>% 
+    spread(ident, expression, fill = 0) %>% 
+    as.data.frame %>% 
+    set_rownames(.$gene) %>% 
+    .[,-1] %>% 
+    as.matrix %>% 
+    .[apply(.,1,sum)<=2,]
+}
+
+marker_mat_top <- get_marker_mat(top_sets, 0.25, 100)
+marker_mat_epi <- get_marker_mat(epi_sets, 0.25, 20)
+marker_mat_str <- get_marker_mat(str_sets, 0.25, 20)
+marker_mat_imm <- get_marker_mat(imm_sets, 0.25, 20)
+marker_mat_all <- get_marker_mat(c(epi_sets, str_sets, imm_sets), 0.25, 20)
+
+marker_mat_top_all <- full_join(
+  data.frame(gene = rownames(marker_mat_epi), Epithelial = 1),
+  data.frame(gene = rownames(marker_mat_str), Stromal = 1), 
+  by = "gene") %>% 
+  full_join(data.frame(gene = rownames(marker_mat_imm), Immune = 1), by = "gene") %>%
+  bind_rows(as_tibble(as.data.frame(marker_mat_top), rownames = "gene")) %>% 
+  distinct(gene, .keep_all = T) %>% 
+  replace_na(list(Epithelial = 0, Stromal = 0, Immune = 0)) %>% 
+  as.data.frame() %>% 
+  set_rownames(.$gene) %>% 
+  .[,-1] %>%
+  as.matrix  
+
+epi_genes <- rownames(marker_mat_top_all)[marker_mat_top_all[,"Epithelial"] == 1]
+epi_genes <- epi_genes[epi_genes %in% rownames(seu_raw)]
+seu_raw <- AddModuleScore(seu_raw, features = list(epi_genes), name = "Epithelial_genes")
+
+str_genes <- rownames(marker_mat_top_all)[marker_mat_top_all[,"Stromal"] == 1]
+str_genes <- str_genes[str_genes %in% rownames(seu_raw)]
+seu_raw <- AddModuleScore(seu_raw, features = list(str_genes), name = "Stromal_genes")
+
+imm_genes <- rownames(marker_mat_top_all)[marker_mat_top_all[,"Immune"] == 1]
+imm_genes <- imm_genes[imm_genes %in% rownames(seu_raw)]
+seu_raw <- AddModuleScore(seu_raw, features = list(imm_genes), name = "Immune_genes")
+
+FeaturePlot(seu_raw, c("Epithelial_genes1", "Stromal_genes1", "Immune_genes1"), pt.size = 0.01, combine = F) %>% lapply(add, NoAxes()) %>% lapply(add, coord_fixed()) %>% CombinePlots(ncol = 3)
+
+main_celltype_tbl <- FetchData(seu_raw, c(cluster_feature, "Epithelial_genes1", "Stromal_genes1", "Immune_genes1")) %>% 
+  as_tibble %>% 
+  rename(sct_cluster = !! cluster_feature) %>%
+  gather(key, value, -sct_cluster) %>%
+  group_by(sct_cluster, key) %>% 
+  summarise(mean_score = mean(value)) %>% 
+  ungroup %>% 
+  mutate(mean_score = ifelse(key == "Stromal_genes1", mean_score*4, mean_score))
+
+ggplot(main_celltype_tbl, aes(key, mean_score, fill = key)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~sct_cluster) +
+  coord_flip()
+  
+main_celltype_tbl_sub <- main_celltype_tbl %>%
+  group_by(sct_cluster) %>% 
+  arrange(-mean_score) %>% 
+  slice(1) %>%
+  mutate(main_cell_type = str_remove_all(key, "_genes1")) %>%
+  select(sct_cluster, main_cell_type)
+
+if(str_detect(sample_name, "ot")) {
+  main_celltype_tbl_sub <- main_celltype_tbl_sub %>% 
+    mutate(main_cell_type = str_replace_all(main_cell_type, "Immune", "Epithelial"))
+}
+
+```
+
+```{r chunk160, fig.height=12, fig.width=10}
+
+test_set <- snn_markers %>%
+  filter(!(gene %in% grep(pattern = "^MT-", x = rownames(seu_raw), value = T))) %>%
+  rename(sct_cluster = cluster) %>% 
+  filter(avg_logFC > 0.25) %>% 
+  group_by(sct_cluster) %>% 
+  slice(1:100) %>%
+  mutate(k = length(sct_cluster)) %>%
+  ungroup %>%
+  select(sct_cluster, gene, k) %>% 
+  mutate(join_helper = 1) %>% 
+  group_by(sct_cluster, join_helper, k) %>%
+  nest(gene) %>% 
+  rename(test_set = data)
+
+ref_set <- marker_mat_all %>% 
+  as.data.frame %>% 
+  as_tibble(rownames = "gene") %>% 
+  gather(cell_type, value, -gene) %>% 
+  filter(value == 1) %>% 
+  group_by(cell_type) %>% 
+  filter(gene %in% rownames(seu_raw)) %>% 
+  mutate(m = length(gene),
+         n = length(rownames(seu_raw))-m,
+         join_helper = 1) %>% 
+  group_by(cell_type, m, n, join_helper) %>%
+  nest(gene) %>% 
+  rename(ref_set = data)
+
+hyper_tbl <- test_set %>% 
+  left_join(ref_set, by = "join_helper") %>% 
+  group_by(sct_cluster, cell_type, m, n, k) %>%
+  do(q = length(intersect(unlist(.$ref_set), unlist(.$test_set)))) %>%
+  mutate(pval = 1-phyper(q = q, m = m, n = n, k = k)) %>%
+  ungroup %>%
+  mutate(qval = p.adjust(pval, "BH"),
+         sig = qval < 0.01)
+
+hyper_tbl %>% 
+  group_by(cell_type) %>% 
+  filter(any(qval < 0.01)) %>%
+  ggplot(aes(cell_type, -log10(qval), fill = sig)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~sct_cluster) +
+  coord_flip()
+  
+cell_anno_tbl <- hyper_tbl %>% 
+  arrange(qval) %>%
+  group_by(sct_cluster) %>% 
+  slice(1) %>% 
+  filter(sig) %>%
+  select(sct_cluster, sct_cell_type = cell_type)
+
+seu_ann <- seu_raw
+seu_ann@meta.data <- seu_raw@meta.data %>% 
+  as.data.frame() %>% 
+  as_tibble() %>%
+  mutate(sample_id = str_split(cell_id, ":") %>% 
+           lapply(function(x) x[1]) %>% 
+           unlist %>% 
+           str_remove_all("cellranger_output_"),
+         case_id = str_sub(sample_id, 0, 4),
+         sample_origin = str_sub(sample_id, 5, -1L)) %>% 
+  rename(sct_cluster = !!cluster_feature) %>% 
+  left_join(cell_anno_tbl, by = "sct_cluster") %>% 
+  left_join(main_celltype_tbl_sub, by = "sct_cluster") %>%
+  replace_na(list(sct_cell_type = "unknown")) %>%
+  as.data.frame() %>% 
+  set_rownames(.$cell_id)
+
+```
+
+```{r chunk180, fig.height=10,fig.width=15}
+
+Idents(seu_ann) <- seu_ann$main_cell_type
+DimPlot(seu_ann, pt.size = 0.1, label = T) + coord_fixed() + NoAxes()
+
+Idents(seu_ann) <- seu_ann$sct_cell_type
+DimPlot(seu_ann, pt.size = 0.1, label = T) + coord_fixed() + NoAxes()
+
+```
+
+```{r chunk190, fig.height=10,fig.width=15}
+
+cluster_freq <- FetchData(seu_ann, c("sample_origin", "case_id", "sct_cell_type", "main_cell_type")) %>% 
+  as_tibble(rownames = "cell_id") %>% 
+  group_by(sct_cell_type, case_id, sample_origin, main_cell_type) %>% 
+  tally %>% 
+  group_by(sct_cell_type, case_id, main_cell_type) %>%
+  mutate(nrel = scales::rescale(n, c(0, 1), c(0, sum(n)))) %>% 
+  ungroup %>%
+  group_by(sample_origin) %>%
+  mutate(nrel2 = scales::rescale(n, c(0, 1), c(0, sum(n)))) %>%
+  gather(key, value, -sct_cell_type, -case_id, -sample_origin, -nrel2, -main_cell_type)
+
+ggplot(cluster_freq, aes(sct_cell_type, nrel2, fill = sct_cell_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(main_cell_type~case_id, scales = "free", space = "free") +
+  coord_flip()
+
+```
+
+### Cell split 
+
+```{r chunk200}
+
+Idents(seu_ann) <- seu_ann$main_cell_type
+if (any("Epithelial" == seu_ann$main_cell_type)) seu_raw_epi <- subset(seu_ann, idents = c("Epithelial")) %>% scale_n_reduce(scale = F)
+if (any("Immune" == seu_ann$main_cell_type)) seu_raw_imm <- subset(seu_ann, idents = c("Immune")) %>% scale_n_reduce(scale = F)
+if (any("Stromal" == seu_ann$main_cell_type)) seu_raw_str <- subset(seu_ann, idents = c("Stromal"))
+
+```
+
+```{r chunk210}
+
+if (any("Epithelial" == seu_ann$main_cell_type)) DimPlot(seu_raw_epi, group.by = "sct_cell_type") + NoAxes() + coord_fixed()
+if (any("Immune" == seu_ann$main_cell_type)) DimPlot(seu_raw_imm, group.by = "sct_cell_type") + NoAxes() + coord_fixed()
+
+```
+
+```{r chunk205, fig.width=15}
+
+qc_tbl <- FetchData(seu_ann, c("main_cell_type", "nCount_spliced", "nFeature_spliced", "pMT", "pRP", "sct_cell_type", "nFrac_s", "nFrac_u", "nFrac_a"))
+
+p1 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), log2(nFeature_spliced), color = main_cell_type), size = 1, alpha = 0.5)
+
+p2 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), log2(nFeature_spliced), color = sct_cell_type), size = 1, alpha = 0.5)
+
+p3 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), pMT, color = main_cell_type), size = 1, alpha = 0.5)
+
+p4 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), pMT, color = sct_cell_type), size = 1, alpha = 0.5)
+
+p5 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), pRP, color = main_cell_type), size = 1, alpha = 0.5)
+
+p6 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), pRP, color = sct_cell_type), size = 1, alpha = 0.5)
+
+p7 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_s, color = main_cell_type), size = 1, alpha = 0.5)
+
+p8 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_s, color = sct_cell_type), size = 1, alpha = 0.5)
+
+p9 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_u, color = main_cell_type), size = 1, alpha = 0.5)
+
+p10 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_u, color = sct_cell_type), size = 1, alpha = 0.5)
+
+p11 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_a, color = main_cell_type), size = 1, alpha = 0.5)
+
+p12 <- ggplot(qc_tbl) +
+  geom_point(aes(log2(nCount_spliced), nFrac_a, color = sct_cell_type), size = 1, alpha = 0.5)
+
+plot_grid(p1, p2)
+plot_grid(p3, p4)
+plot_grid(p5, p6)
+plot_grid(p7, p8)
+plot_grid(p9, p10)
+plot_grid(p11, p12)
+
+```
+
+```{r chunk240}
+
+write_rds(seu_ann, paste0("_data/computed/raw/seu_raw_", params$sample_name, "_strict.rds"))
+if (any("Epithelial" == seu_ann$main_cell_type)) write_rds(seu_raw_epi, paste0("_data/computed/raw/seu_raw_epi_", params$sample_name, "_strict.rds"))
+if (any("Immune" == seu_ann$main_cell_type)) write_rds(seu_raw_imm, paste0("_data/computed/raw/seu_raw_imm_", params$sample_name, "_strict.rds"))
+if (any("Stromal" == seu_ann$main_cell_type)) write_rds(seu_raw_str, paste0("_data/computed/raw/seu_raw_str_", params$sample_name, "_strict.rds"))
+
+```
+
