@@ -32,6 +32,7 @@ cargs$pHB_upper <- 0.1
 cargs$cluster_res <- 2
 cargs$nbin <- 24
 cargs$anchoring <- TRUE
+cargs$demux <- FALSE
 cargs$root_dir <- "/extra/flo/sc/sc18"
 cargs$grouping_var <- "sample_origin"
 
@@ -74,7 +75,8 @@ run_qc <- function(sample_name = cargs$sample_names,
                    pMT_upper = cargs$pMT_upper,
                    pHB_lower = cargs$pHB_lower,
                    pHB_upper = cargs$pHB_upper,
-                   rel_comp = cargs$rel_comp) {
+                   rel_comp = cargs$rel_comp,
+                   demux = cargs$demux) {
   rmarkdown::render(
     "_src/prepro_01_qc.Rmd", params = list(
       sample_name = sample_name,
@@ -93,7 +95,8 @@ run_qc <- function(sample_name = cargs$sample_names,
       pMT_upper = pMT_upper,
       pHB_lower = pHB_lower,
       pHB_upper = pHB_upper,
-      rel_comp = rel_comp
+      rel_comp = rel_comp,
+      demux = demux
     ),
     output_file = paste0("01_qc_", sample_name, "_strict.html"),
     output_dir = "_html",

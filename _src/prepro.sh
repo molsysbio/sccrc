@@ -24,6 +24,12 @@ Rscript prepro_00.R --run_mode qc --root_dir $ROOT_DIR --sample_names p009ot0
 Rscript prepro_00.R --run_mode qc --root_dir $ROOT_DIR --sample_names p009ot2
 Rscript prepro_00.R --run_mode qc --root_dir $ROOT_DIR --sample_names p013ot0
 Rscript prepro_00.R --run_mode qc --root_dir $ROOT_DIR --sample_names p013ot3
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p020n --demux TRUE
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p020t --demux TRUE
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p021n --demux TRUE
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p021t --demux TRUE
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p025n --demux TRUE
+Rscript prepro_00.R --run_mode qc --root_dir ~/projects/science/sccrc --sample_names p025t --demux TRUE
 
 ## subsetting
 Rscript prepro_00.R --run_mode subset --root_dir $ROOT_DIR --seu_obj _data/_patients/computed/raw/seu_raw_epi_p007n_strict.rds

@@ -25,6 +25,7 @@ params:
   pHB_upper: 0.1
   rel_comp: 10
   cluster_res: 2
+  demux: FALSE
 ---
 
 ```{r chunk000}
@@ -51,8 +52,8 @@ library(parallel)
 reticulate::use_condaenv("base")
 
 # ## debugging example pars
-# sample_name <- "p009ot0"
-# loom_file <- "_data/velocyto/p009ot0.loom"
+# sample_name <- "p020n"
+# loom_file <- "_data/velocyto/p020n.loom"
 # nFeature_lower <- 100
 # nFeature_upper <- 10000
 # nCount_lower <- 500
@@ -69,6 +70,7 @@ reticulate::use_condaenv("base")
 # pHB_upper <- 0.1
 # rel_comp <- 10
 # cluster_res <- 2
+# demux <- TRUE
 
 theme_set(theme_cowplot())
 
@@ -90,6 +92,7 @@ pHB_lower <- params$pHB_lower
 pHB_upper <- params$pHB_upper
 rel_comp <- params$rel_comp
 cluster_res <- params$cluster_res
+demux <- params$demux
  
 ```
 
@@ -106,7 +109,7 @@ ldat <- ReadVelocity(loom_file)
 
 ## fix colnames and rownames
 ldat <- lapply(ldat, function(x) {
-  set_colnames(x, str_remove_all(colnames(x), "x")) %>%
+  set_colnames(x, str_remove_all(colnames(x), "x|cellranger_output_|cellranger_count_")) %>%
     .[unique(rownames(.)),] %>% 
     set_rownames(str_remove_all(rownames(.), "GRCh38_______"))
 })
@@ -149,6 +152,26 @@ add_qc <- function(seu_obj) {
 }
 
 seu_raw <- add_qc(seu_raw)
+
+if (demux) {
+  
+  hash_tbl <- read_tsv(paste0("_data/demux/", sample_name, ".tsv")) %>% 
+    mutate(cell_id = paste0(sample_name, ":", cells)) %>% 
+    select(cell_id, sample_hash = sample)
+  
+  add_hash <- function(seu_obj) {
+    seu_obj@meta.data <- seu_obj@meta.data %>% 
+      as_tibble() %>% 
+      left_join(hash_tbl, by = "cell_id") %>% 
+      as.data.frame() %>% 
+      set_rownames(.$cell_id)
+    return(seu_obj)
+  }
+  
+  seu_raw <- add_hash(seu_raw)
+
+}
+
 
 ```
 
@@ -242,7 +265,24 @@ qc_std_plot <- function(seu_obj) {
 
 ### Before filtering
 
+```{r chunk025, fig.width=8, fig.height=6}
+
+if (demux) {
+  
+  qc_data_demux <- as_tibble(FetchData(seu_raw, c("nCount_spliced", "nFeature_spliced", "pMT", "pHB", "pRP", "nFrac_s", "nFrac_u", "nFrac_a", "sample_hash")))
+  ggplot(qc_data_demux, aes(log2(nCount_spliced), pMT, color = sample_hash)) + 
+    geom_point(size = 0.01) +
+    geom_hline(yintercept = pMT_lower, color = "red", linetype = 2) +
+    geom_hline(yintercept = pMT_upper, color = "red", linetype = 2) +
+    geom_vline(xintercept = log2(nCount_lower), color = "red", linetype = 2) +
+    geom_vline(xintercept = log2(nCount_upper), color = "red", linetype = 2)
+  
+}
+
+```
+
 ```{r chunk030, fig.width=14, fig.height=16}
+
 
 qc_std_plot(seu_raw)
 # ggsave(paste0("_fig/p_qc_", sample_name, ".png"), width = 10, height = 7)
@@ -558,7 +598,7 @@ seu_ann@meta.data <- seu_raw@meta.data %>%
   mutate(sample_id = str_split(cell_id, ":") %>% 
            lapply(function(x) x[1]) %>% 
            unlist %>% 
-           str_remove_all("cellranger_output_"),
+           str_remove_all("cellranger_output_|cellranger_count_"),
          case_id = str_sub(sample_id, 0, 4),
          sample_origin = str_sub(sample_id, 5, -1L)) %>% 
   rename(sct_cluster = !!cluster_feature) %>% 

@@ -1,0 +1,41 @@
+---
+title: Preprocessing reports
+author: Florian Uhlitz
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    code_folding: hide
+---
+
+## QC
+
+```{r, echo=F, warning=F, message=F}
+library(lubridate)
+```
+
+```{r results='asis'}
+hrefs_path <- list.files(pattern = "(01_qc).*_strict\\.html$", full.names = T)
+hrefs <- basename(hrefs_path)
+cat(paste0(date(file.info(hrefs_path)$mtime),": [", hrefs, "](", hrefs,")", collapse = "<br>"),
+    "<br><br>")
+```
+
+## Anchoring
+
+```{r results='asis'}
+hrefs_path <- list.files(pattern = "02_anchoring", full.names = T)
+hrefs <- basename(hrefs_path)
+cat(paste0(date(file.info(hrefs_path)$mtime),": [", hrefs, "](", hrefs,")", collapse = "<br>"),
+    "<br><br>")
+```
+
+## Annotation
+
+```{r results='asis'}
+hrefs_path <- list.files(pattern = "04_anno")
+hrefs <- basename(hrefs_path)
+cat(paste0(date(file.info(hrefs_path)$mtime),": [", hrefs, "](", hrefs,")", collapse = "<br>"),
+    "<br><br>")
+```
+
