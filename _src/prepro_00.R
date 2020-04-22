@@ -33,6 +33,7 @@ cargs$cluster_res <- 2
 cargs$nbin <- 24
 cargs$anchoring <- TRUE
 cargs$demux <- FALSE
+cargs$filter_warm <- FALSE
 cargs$root_dir <- "/extra/flo/sc/sc18"
 cargs$grouping_var <- "sample_origin"
 
@@ -120,13 +121,15 @@ run_sub <- function(seu_obj = cargs$seu_obj,
 run_anchoring <- function(sample_names = cargs$sample_names,
                           ref_samples = cargs$ref_samples,
                           rel_comp = cargs$rel_comp,
-                          anchoring = cargs$anchoring) {
+                          anchoring = cargs$anchoring,
+                          filter_warm = cargs$filter_warm) {
   rmarkdown::render(
     "_src/prepro_03_anchoring.Rmd", params = list(
       sample_names = sample_names,
       ref_samples = ref_samples,
       rel_comp = rel_comp,
-      anchoring = anchoring
+      anchoring = anchoring,
+      filter_warm = filter_warm
     ),
     output_file = paste0("03_anchoring_", substr(paste0(sample_names, collapse = "_"), 1, 100), ".html"),
     output_dir = "_html",

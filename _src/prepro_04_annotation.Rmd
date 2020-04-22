@@ -8,7 +8,7 @@ output:
     code_folding: hide
 params: 
   seu_obj: ["_data/_patients/computed/anchored/seu_abc_epi_p007n_epi_p007t.rds"]
-  cluster_res: 1
+  cluster_res: 0.8
   nbin: 24
   grouping_var: ["sample_origin"]
 ---
@@ -24,7 +24,6 @@ knitr::opts_chunk$set(echo = F, warning = F, message = F)
 ```{r chunk010}
 
 library(CMSclassifier)
-library(CMScaller)
 library(magrittr)
 library(tidyverse)
 library(readxl)
@@ -39,8 +38,8 @@ library(viridis)
 library(knitr)
 reticulate::use_condaenv("base")
 theme_set(theme_cowplot())
-seu_obj_file <- c("_data/_patients/computed/anchored/seu_abc_epi_p009t1_strict_epi_p009t2_strict_epi_p013t_strict_epi_p009ot0_strict_epi_p009ot2_strict_epi_p013ot0_strict_epi_p013ot3_strict.rds")
-cluster_res <- 1
+seu_obj_file <- c("_data/computed/anchored/seu_merge_epi_p007n_strict_epi_p007t_strict.rds")
+cluster_res <- 0.8
 nbin <- 24
 grouping_var <- "sample_origin"
 seu_obj_file <- params$seu_obj
@@ -316,10 +315,6 @@ seu_obj <- add_cms(seu_obj)
 
 ```{r chunk030}
 
-seu_obj <- seu_obj %>% 
-  FindNeighbors() %>% 
-  FindClusters(resolution = as.numeric(cluster_res))
-
 cluster_feature <- paste0(DefaultAssay(seu_obj), "_snn_res.", cluster_res)
 
 seu_obj <- AddMetaData(seu_obj, metadata = FetchData(seu_obj, cluster_feature) %>% 
@@ -503,36 +498,6 @@ seu_obj <- annotate_cell_type(seu_obj, marker_mat_epi, "cell_type_epi")
 seu_obj <- annotate_cell_type(seu_obj, marker_mat_imm, "cell_type_imm")
 seu_obj <- annotate_cell_type(seu_obj, marker_mat_str, "cell_type_str")
 
-#seu_obj@meta.data <- seu_obj@meta.data %>% 
-#  as.data.frame() %>% 
-#  mutate(cell_type_epi = ifelse(snn_cluster == "13", "TC1", cell_type_epi)) %>% 
-#  mutate(cell_type_epi = ifelse(snn_cluster == "16", "TC2", cell_type_epi)) %>% 
-#  mutate(cell_type_epi = ifelse(snn_cluster == "12", "TC3", cell_type_epi)) %>% 
-#  mutate(cell_type_epi = ifelse(snn_cluster == "6", "TC4", cell_type_epi)) %>% 
-#  mutate(cell_type_epi = ifelse(snn_cluster == "10", "TC5", cell_type_epi)) %>% 
-#  as.data.frame() %>% 
-#  set_rownames(.$cell_id)
-
-# hyper_tbl %>% 
-#   group_by(cell_type) %>% 
-#   filter(any(qval < 0.01)) %>%
-#   ggplot(aes(cell_type, -log10(qval), fill = sig)) +
-#   geom_bar(stat = "identity") +
-#   facet_wrap(~cluster) +
-#   coord_flip()
-  
-#DimPlot(seu_obj, group.by = "cell_type_epi", pt.size = 0.1, label = T) + coord_fixed() + NoAxes()
-#DimPlot(seu_obj, group.by = "cell_type_epi", split.by = "sample_origin", pt.size = 0.1, label = T) + coord_fixed() + NoAxes()
-#DimPlot(seu_obj, group.by = "cell_type_epi", split.by = "sample_id", pt.size = 0.1, ncol = 5) + coord_fixed() + NoAxes()
-
-#FetchData(seu_obj, c("cell_type_epi", "sample_origin")) %>% group_by(cell_type_epi, sample_origin) %>% tally %>% spread(sample_origin,n) %>% mutate(tumor_fraction = tumor/(normal+tumor))
-                                  
-#filter(snn_markers, cluster %in% c("6", "13", "16", "10", "12")) %>% spread_markers %>% slice(1:30) %>% set_colnames(c("rank", "TC5", "TC3", "TC1", "TC2", "TC4"))
-
-#FeaturePlot(subset(seu_obj, cells = seu_obj$cell_id[seu_obj$sample_origin=="normal"]), c("OLFM4", "MKI67", "TFF3", "FABP1", "TRPM5", "MMP7", "LYZ", "RNF43", "REG1A", "SET", "HSPD1", "PLA2G2A", "RPL12", "LCN2", "POLR1A", "MAPK.pathway"), combine = F, pt.size = 0.01) %>% lapply(add, NoAxes()) %>% lapply(add, NoLegend()) %>% CombinePlots(ncol = 4)
-
-#FeaturePlot(subset(seu_obj, cells = seu_obj$cell_id[seu_obj$sample_origin=="tumor"]), c("OLFM4", "MKI67", "TFF3", "FABP1", "TRPM5", "MMP7", "LYZ", "RNF43", "REG1A", "SET", "HSPD1", "PLA2G2A", "RPL12", "LCN2", "POLR1A", "MAPK.pathway"), combine = F, pt.size = 0.01) %>% lapply(add, NoAxes()) %>% lapply(add, NoLegend()) %>% CombinePlots(ncol = 4)
-
 
 
 ```
@@ -540,43 +505,26 @@ seu_obj <- annotate_cell_type(seu_obj, marker_mat_str, "cell_type_str")
 ```{r chunk080, fig.height=10,fig.width=15}
 
 
-if (!all(is.na(seu_obj$cell_type_epi))) {
+if (str_detect(seu_obj_file, "epi_")) {
   DimPlot(seu_obj, group.by = "cell_type_epi", pt.size = 0.1, label = T, 
           ncol = round(sqrt(length(unique(seu_obj$sample_id))+1))) + coord_fixed() + NoAxes()
 }
-if (!all(is.na(seu_obj$cell_type_imm))) {
-  DimPlot(seu_obj, split.by = "sample_origin", group.by = "cell_type_imm", pt.size = 0.1, label = T, 
+if (str_detect(seu_obj_file, "imm_")) {
+  DimPlot(seu_obj, group.by = "cell_type_imm", pt.size = 0.1, label = T, 
           ncol = round(sqrt(length(unique(seu_obj$sample_id))+1))) + coord_fixed() + NoAxes()
 }
-if (!all(is.na(seu_obj$cell_type_str))) {
-  DimPlot(seu_obj, split.by = "sample_origin", group.by = "cell_type_str", pt.size = 0.1, label = T, 
+if (str_detect(seu_obj_file, "str_")) {
+  DimPlot(seu_obj, group.by = "cell_type_str", pt.size = 0.1, label = T, 
           ncol = round(sqrt(length(unique(seu_obj$sample_id))+1))) + coord_fixed() + NoAxes()
 }
 
-
-```
-
-```{r chunk090, fig.height=10,fig.width=15}
-
-# cluster_freq <- FetchData(seu_obj, c("sample_id", "cell_type_epi")) %>% 
-#   as_tibble(rownames = "cell_id") %>% 
-#   group_by(cell_type_epi, sample_id) %>% 
-#   tally %>% 
-#   group_by(sample_id) %>%
-#   mutate(nrel = scales::rescale(n, c(0, 1), c(0, sum(n)))) %>% 
-#   ungroup %>%
-#   gather(key, value, -cell_type_epi, -sample_id)
-
-# ggplot(cluster_freq, aes(cell_type_epi, value, fill = cell_type_epi)) +
-#   geom_bar(stat = "identity") +
-#   facet_wrap(key~sample_id, scales = "free") +
-#   coord_flip()
 
 ```
 
 ```{r chunk100}
 
-write_rds(seu_obj, paste0("_data/_patients/computed/annotated/", basename(seu_obj_file)))
-write_rds(snn_markers, paste0("_data/_patients/computed/annotated/", basename(seu_obj_file), "_markers.rds"))
+write_rds(seu_obj, paste0("_data/computed/annotated/", basename(seu_obj_file)))
+write_rds(snn_markers, paste0("_data/computed/annotated/", basename(seu_obj_file), "_markers.rds"))
 
 ```
+

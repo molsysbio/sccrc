@@ -1,0 +1,7 @@
+sample_origin	main_cell_type	n
+Normal	Epithelial	17874
+Normal	Immune	11769
+Normal	Stromal	826
+Tumor	Epithelial	13373
+Tumor	Immune	22683
+Tumor	Stromal	2177
