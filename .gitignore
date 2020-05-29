@@ -16,3 +16,4 @@
 .Rproj.user*
 *.ipynb_*
 .Rproj.user
+_data/infercnv/out

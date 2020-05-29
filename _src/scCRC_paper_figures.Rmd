@@ -115,21 +115,38 @@ seu_str_pri <- read_rds("_data/computed/annotated/seu_merge_str_p007n_strict_str
 
 seu_markers_str_pri <- read_rds("_data/computed/annotated/seu_merge_str_p007n_strict_str_p007t_strict_str_p008t_strict_str_p009n1_strict_str_p009n2_strict_str_p009t1_strict_str_p009t2_strict_str_p012n_strict_str_p012t_strict_str_p013n_strict_str_p013t_strict_str_p014n.rds_markers.rds")
 
+# seu_all <- merge(seu_epi_pri, y = list(seu_imm_pri, seu_str_pri), 
+#                  merge.data = T)
+# seu_all <- RenameCells(seu_all, new.names = str_replace_all(seu_all$cell_id, "p001", "p007")%>%str_remove_all("cellranger_output_|cellranger_count_"))
+# seu_all$cell_id <- colnames(seu_all)
+# seu_all <- seu_all %>%
+#   FindVariableFeatures %>%
+#   RunPCA(verbose = F) %>% 
+#   RunUMAP(dims = 1:10) %>% 
+#   RunUMAP(dims = 1:50, reduction.name = "umap50", reduction.key = "umap50_")
+# write_rds(seu_all, "_data/computed/final/seu_all_final_tmp.rds")
+seu_all <- read_rds("_data/computed/final/seu_all_final_tmp.rds")
+
 seu_epi_pri <- RenameCells(seu_epi_pri, new.names = str_replace_all(seu_epi_pri$cell_id, "p001", "p007")%>%str_remove_all("cellranger_output_|cellranger_count_"))
+seu_epi_pri$cell_id <- colnames(seu_epi_pri)
 
 seu_epi_pri$source_id <- str_replace_all(seu_epi_pri$source_id, "p001", "p007")
 seu_epi_pri$sample_id <- str_replace_all(seu_epi_pri$sample_id, "p001", "p007")
+Idents(seu_epi_pri) <- seu_epi_pri$main_cell_type
 
 seu_imm_pri <- RenameCells(seu_imm_pri, new.names = str_replace_all(seu_imm_pri$cell_id, "p001", "p007")%>%str_remove_all("cellranger_output_|cellranger_count_"))
+seu_imm_pri$cell_id <- colnames(seu_imm_pri)
 
 seu_imm_pri$source_id <- str_replace_all(seu_imm_pri$source_id, "p001", "p007")
 seu_imm_pri$sample_id <- str_replace_all(seu_imm_pri$sample_id, "p001", "p007")
+Idents(seu_imm_pri) <- seu_imm_pri$main_cell_type
 
 seu_str_pri <- RenameCells(seu_str_pri, new.names = str_replace_all(seu_str_pri$cell_id, "p001", "p007")%>%str_remove_all("cellranger_output_|cellranger_count_"))
+seu_str_pri$cell_id <- colnames(seu_str_pri)
 
 seu_str_pri$source_id <- str_replace_all(seu_str_pri$source_id, "p001", "p007")
 seu_str_pri$sample_id <- str_replace_all(seu_str_pri$sample_id, "p001", "p007")
-
+Idents(seu_str_pri) <- seu_str_pri$main_cell_type
 
 ```
 
@@ -182,34 +199,33 @@ seu_epi_pri@meta.data <- seu_epi_pri@meta.data %>%
 
 ## curated immune cell annotation
 imm_custom_anno <- frame_data(
-  ~SCT_snn_res.0.4, ~cell_type_imm_custom, ~imm_marker_genes, ~cell_type_imm_color,
-  "3", "B cells", "MS4A1", "#feca8d",
-  #"8", "B cells 2", "MS4A1", "#fe9903",
-  "11", "GC B cells", "RGS13", "#d45e00",
-  "2", "Plasma L", "IGLC2", "#b4ab31",
-  #"10", "Plasma L 2", "IGLC2", "#bf922a",
-  "4", "Plasma K 1", "IGKC", "#ff0000",
-  "8", "Plasma K 2", "IGKC", "#cf0000",
-  "7", "Plasma K 3", "IGKC", "#940000",
-  #"12", "Plasma K 4", "IGKC", "#b65252",
-  #"15", "Plasma K 5", "IGKC", "#c77b7b",
-  #"21", "Plasma K 6", "IGKC", "#d8a3a3",
-  #"19", "Plasma K 7", "IGKC", "#b19e9e",
-  "6", "Treg", "IL2RA", "#0072b1",
-  "1", "Tconv", "CD40LG", "#55b4e9",
-  #"3", "Tconv 2", "CD40LG", "#09ccff",
-  "0", "CD8+ T 1", "CD8A", "#e37db0",
-  "9", "CD8+ T 2", "CD8A", "#CC80CC",
-  #"12", "CD8+ T 3", "CD8A", "#990099",
-  #"17", "CD8+ T 4", "CD8A", "#660099",
-  "10", "Mast", "KIT", "#efe443",
-  "5", "Monocyte", "CD68", "#029f73"
-  #"12", "Monocyte 2", "CD68", "#336601"  
+  ~SCT_snn_res.0.8, ~cell_type_imm_custom, ~imm_marker_genes, ~cell_type_imm_color,
+  "10", "B cells", "MS4A1", "#feca8d",
+  "6", "B cells 2", "MS4A1", "#fe9903",
+  "20", "GC B cells", "RGS13", "#d45e00",
+  "5", "Plasma L 1", "IGLC2", "#b4ab31",
+  "13", "Plasma L 2", "IGLC2", "#bf922a",
+  "3", "Plasma K 1", "IGKC", "#ff0000",
+  "7", "Plasma K 2", "IGKC", "#cf0000",
+  "11", "Plasma K 3", "IGKC", "#940000",
+  "14", "Plasma K 4", "IGKC", "#b65252",
+  "15", "Plasma K 5", "IGKC", "#c77b7b",
+  "19", "Plasma K 6", "IGKC", "#d8a3a3",
+  "21", "Plasma K 7", "IGKC", "#b19e9e",
+  "8", "Treg", "IL2RA", "#0072b1",
+  "2", "Tconv 1", "CD40LG", "#55b4e9",
+  "0", "Tconv 2", "CD40LG", "#09ccff",
+  "1", "CD8+ T 1", "CD8A", "#e37db0",
+  "4", "CD8+ T 2", "CD8A", "#CC80CC",
+  "18", "CD8+ T 3", "CD8A", "#990099",
+  "17", "CD8+ T 4", "CD8A", "#660099",
+  "16", "Mast", "KIT", "#efe443",
+  "9", "Monocyte 1", "CD68", "#029f73",
+  "12", "Monocyte 2", "CD68", "#336601"  
 ) %>% 
   mutate(cell_type_imm_simple = str_remove_all(cell_type_imm_custom, " [0-9]")) %>%
   mutate(cell_type_imm_simple = ordered(cell_type_imm_simple, levels = unique(cell_type_imm_simple))) %>% 
   mutate(cell_type_imm_custom = ordered(cell_type_imm_custom, levels = unique(cell_type_imm_custom)))
-
 
 ## cell type annotation fix imm pri
 #seu_imm_pri$cell_type_imm_custom <- NULL
@@ -218,7 +234,7 @@ imm_custom_anno <- frame_data(
 #seu_imm_pri$cell_type_imm_color <- NULL
 seu_imm_pri@meta.data <- seu_imm_pri@meta.data %>%
   as_tibble %>%
-  left_join(imm_custom_anno, by = "SCT_snn_res.0.4") %>%
+  left_join(imm_custom_anno, by = "SCT_snn_res.0.8") %>%
   as.data.frame() %>%
   set_rownames(names(Idents(seu_imm_pri)))
 
@@ -234,8 +250,8 @@ str_custom_anno <- frame_data(
   "1", "CB FBs", "-", "#55b4e9",
   #"4", "CB FBs 2", "-", "#09ccff",
   "5", "UC FBs", "-", "#fac98d",
-  "2", "CAFs", "-", "#d55e00",
-  "4", "CCL FBs", "-", "#f1605d",
+  "2", "CAFs", "-", "#FF0000",
+  "4", "CCL FBs", "-", "#efe443",
   "6", "Pericytes", "-", "#FF66FF",
   "3", "MyoFBs 1", "-", "#336600",
   "8", "MyoFBs 2", "-", "#99B380",
@@ -266,9 +282,210 @@ seu_str_pri@meta.data <- seu_str_pri@meta.data %>%
 
 ```{r}
 
+#seu_all$cell_type_epi_custom <- NULL
+#seu_all$epi_marker_genes <- NULL
+#seu_all$cell_type_epi_color <- NULL
+#seu_all$cell_type_epi_simple <- NULL
+#seu_all$cell_type_imm_custom <- NULL
+#seu_all$imm_marker_genes <- NULL
+#seu_all$cell_type_imm_color <- NULL
+#seu_all$cell_type_imm_simple <- NULL
+#seu_all$cell_type_str_custom <- NULL
+#seu_all$str_marker_genes <- NULL
+#seu_all$cell_type_str_color <- NULL
+#seu_all$cell_type_str_simple <- NULL
+
+seu_all@meta.data <- seu_all@meta.data %>%
+  as_tibble %>%
+  left_join(mutate(epi_custom_anno, main_cell_type = "Epithelial"), by = c("SCT_snn_res.0.8", "main_cell_type")) %>%
+  left_join(mutate(imm_custom_anno, main_cell_type = "Immune"), by = c("SCT_snn_res.0.8", "main_cell_type")) %>%
+  left_join(mutate(str_custom_anno, main_cell_type = "Stromal"), by = c("SCT_snn_res.0.4", "main_cell_type")) %>%
+  as.data.frame() %>%
+  mutate(minor_cell_type = ifelse(main_cell_type == "Epithelial", as.character(cell_type_epi_custom), ifelse(main_cell_type == "Immune", as.character(cell_type_imm_custom), ifelse(main_cell_type == "Stromal", as.character(cell_type_str_custom), NA))),
+         minor_cell_type_color = ifelse(main_cell_type == "Epithelial", cell_type_epi_color, ifelse(main_cell_type == "Immune", cell_type_imm_color, ifelse(main_cell_type == "Stromal", cell_type_str_color, NA)))) %>% 
+  set_rownames(.$cell_id)
+
 write_rds(seu_epi_pri, "_data/computed/final/seu_epi_final.rds")
 write_rds(seu_imm_pri, "_data/computed/final/seu_imm_final.rds")
 write_rds(seu_str_pri, "_data/computed/final/seu_str_final.rds")
+write_rds(seu_all, "_data/computed/final/seu_all_final.rds")
+#seu_epi_pri <- read_rds("_data/computed/final/seu_epi_final.rds")
+#seu_imm_pri <- read_rds("_data/computed/final/seu_imm_final.rds")
+#seu_str_pri <- read_rds("_data/computed/final/seu_str_final.rds")
+#seu_all <- read_rds("_data/computed/final/seu_all_final.rds")
+
+
+```
+
+## joint object UMAPs
+
+```{r}
+
+jo_tbl <- as_tibble(FetchData(seu_all, c("UMAP_1", "UMAP_2", "umap50_1", "umap50_2", "main_cell_type", "minor_cell_type", "minor_cell_type_color", "pMT", "nCount_spliced", "nFeature_spliced", "source_id", "sample_origin"))) %>%
+  mutate(log10Count = log10(nCount_spliced),
+         log10Feature = log10(nFeature_spliced))
+
+plot_all_disc <- function(x, y, group.by, colors) {
+  ggplot(jo_tbl, aes_string(x, y, color = group.by)) + 
+    geom_point(size = 0.01) +
+    scale_color_manual(values = colors) +
+    theme_void() +
+    guides(color = guide_legend(override.aes = list(size = 2))) +
+    theme(legend.title = element_blank())
+}
+
+plot_all_con <- function(x, y, color.by, label) {
+  ggplot(jo_tbl, aes_string(x, y, color = color.by)) + 
+    geom_point(size = 0.01) +
+    scale_color_gradientn(colours = magma(9)) +
+    theme_void() +
+    labs(label)
+}
+
+  
+p1 <- plot_all_disc("UMAP_1", "UMAP_2", "main_cell_type", palette_OkabeIto[1:3])
+p2 <- plot_all_disc("UMAP_1", "UMAP_2", "minor_cell_type", deframe(distinct(jo_tbl, minor_cell_type, minor_cell_type_color)))
+p3 <- plot_all_disc("UMAP_1", "UMAP_2", "source_id", cols.use)
+p4 <- plot_all_disc("UMAP_1", "UMAP_2", "sample_origin", cols.use)
+p5 <- plot_all_disc("umap50_1", "umap50_2", "main_cell_type", palette_OkabeIto[1:3])
+p6 <- plot_all_disc("umap50_1", "umap50_2", "minor_cell_type", deframe(distinct(jo_tbl, minor_cell_type, minor_cell_type_color)))
+p7 <- plot_all_disc("umap50_1", "umap50_2", "source_id", cols.use)
+p8 <- plot_all_disc("umap50_1", "umap50_2", "sample_origin", cols.use)
+
+all_grid_discrete <- plot_grid(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 4, align = "hv")
+
+ggsave("_fig/all_grid.png", all_grid_discrete, width = 30, height = 10)
+ggsave("_fig/all_grid.pdf", all_grid_discrete, width = 30, height = 10)
+
+p1 <- plot_all_con("UMAP_1", "UMAP_2", "pMT", "MT UMIs [%]")
+p2 <- plot_all_con("UMAP_1", "UMAP_2", "log10Count", "log10(# UMIs)")
+p3 <- plot_all_con("UMAP_1", "UMAP_2", "log10Feature", "log10(# Genes)")
+p4 <- plot_all_con("umap50_1", "umap50_2", "pMT", "MT UMIs [%]")
+p5 <- plot_all_con("umap50_1", "umap50_2", "log10Count", "log10(# UMIs)")
+p6 <- plot_all_con("umap50_1", "umap50_2", "log10Feature", "log10(# Genes)")
+
+all_grid_continuous <- plot_grid(p1, p2, p3, p4, p5, p6, ncol = 3, align = "hv")
+
+ggsave("_fig/all_grid_qc.png", all_grid_continuous, width = 16, height = 10)
+ggsave("_fig/all_grid_qc.pdf", all_grid_continuous, width = 16, height = 10)
+
+print(tally(group_by(jo_tbl, main_cell_type, sample_origin)))
+
+```
+
+## TC 1-4 markers
+
+```{r}
+
+TC_outliers <- read_tsv("_data/signatures/cluster_8_cells.tsv") %>%
+  mutate(cluster_8 = str_replace_all(cluster_8, "p001", "p007"))
+
+cell_ids_tbl <- as_tibble(FetchData(seu_epi_pri, c("cell_type_epi_custom", "cell_id"))) %>%
+  filter(!(cell_id %in% TC_outliers$cluster_8))
+
+cell_ids_TC1 <- filter(cell_ids_tbl, cell_type_epi_custom == "TC1", str_detect(cell_id, "^p[0-9][0-9][0-9]t"))$cell_id
+cell_ids_TC2 <- filter(cell_ids_tbl, cell_type_epi_custom == "TC2", str_detect(cell_id, "^p[0-9][0-9][0-9]t"))$cell_id
+cell_ids_TC3 <- filter(cell_ids_tbl, cell_type_epi_custom == "TC3", str_detect(cell_id, "^p[0-9][0-9][0-9]t"))$cell_id
+cell_ids_TC4 <- filter(cell_ids_tbl, cell_type_epi_custom == "TC4", str_detect(cell_id, "^p[0-9][0-9][0-9]t"))$cell_id
+
+cell_ids_all_non_TC <- filter(cell_ids_tbl, !(str_detect(cell_type_epi_custom, "^TC")))$cell_id
+
+cell_ids_tumor_non_TC <- filter(cell_ids_tbl, !(str_detect(cell_type_epi_custom, "^TC")), str_detect(cell_id, "^p[0-9][0-9][0-9]t"))$cell_id
+
+# markers_TC1_vs_TC <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC1, cells.2 = c(cell_ids_TC2, cell_ids_TC3, cell_ids_TC4), only.pos = T)
+# markers_TC2_vs_TC <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC2, cells.2 = c(cell_ids_TC1, cell_ids_TC3, cell_ids_TC4), only.pos = T)
+# markers_TC3_vs_TC <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC3, cells.2 = c(cell_ids_TC1, cell_ids_TC2, cell_ids_TC4), only.pos = T)
+# markers_TC4_vs_TC <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC4, cells.2 = c(cell_ids_TC1, cell_ids_TC2, cell_ids_TC3), only.pos = T)
+# 
+# markers_TC1_vs_all <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC1, cells.2 = cell_ids_all_non_TC, only.pos = T)
+# markers_TC2_vs_all <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC2, cells.2 = cell_ids_all_non_TC, only.pos = T)
+# markers_TC3_vs_all <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC3, cells.2 = cell_ids_all_non_TC, only.pos = T)
+# markers_TC4_vs_all <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC4, cells.2 = cell_ids_all_non_TC, only.pos = T)
+# 
+# markers_TC1_vs_tumor <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC1, cells.2 = cell_ids_tumor_non_TC, only.pos = T)
+# markers_TC2_vs_tumor <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC2, cells.2 = cell_ids_tumor_non_TC, only.pos = T)
+# markers_TC3_vs_tumor <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC3, cells.2 = cell_ids_tumor_non_TC, only.pos = T)
+# markers_TC4_vs_tumor <- FindMarkers(seu_epi_pri@assays$SCT@data, cells.1 = cell_ids_TC4, cells.2 = cell_ids_tumor_non_TC, only.pos = T)
+
+# TC_diff_tbl <- list(markers_TC1_vs_TC, markers_TC2_vs_TC, markers_TC3_vs_TC, markers_TC4_vs_TC, markers_TC1_vs_all, markers_TC2_vs_all, markers_TC3_vs_all, markers_TC4_vs_all, markers_TC1_vs_tumor, markers_TC2_vs_tumor, markers_TC3_vs_tumor, markers_TC4_vs_tumor) %>% 
+#   setNames(c("TC1_vs_TC", "TC2_vs_TC", "TC3_vs_TC", "TC4_vs_TC", "TC1_vs_all", "TC2_vs_all",  "TC3_vs_all", "TC4_vs_all", "TC1_vs_tumor", "TC2_vs_tumor", "TC3_vs_tumor", "TC4_vs_tumor")) %>%
+#   lapply(function(x) as_tibble(x, rownames = "gene")) %>% 
+#   bind_rows(.id = "comparison") %>% 
+#   separate(comparison, into = c("TC", "baseline"), sep = "_vs_", remove = F)
+# 
+# write_tsv(TC_diff_tbl, "_data/_tab/TC_diff.tsv")
+TC_diff_tbl <- read_tsv("_data/_tab/TC_diff.tsv")
+
+top_genes <- TC_diff_tbl %>%
+  filter(baseline != "all") %>% 
+  group_by(comparison) %>% 
+  slice(1:10) %>% 
+  ungroup %>% 
+  distinct(TC, gene)
+
+exprs_tbl <- as_tibble(FetchData(seu_epi_pri, c("cell_type_epi_custom", "cell_id", "source_id", unique(top_genes$gene)), cells = c(cell_ids_TC1, cell_ids_TC2, cell_ids_TC3, cell_ids_TC4))) %>% 
+  gather(gene, value, -cell_type_epi_custom, -cell_id, -source_id) %>% 
+  mutate(gene = ordered(gene, levels = unique(top_genes$gene))) %>% 
+  arrange(cell_type_epi_custom, source_id) %>% 
+  mutate(cell_id = ordered(cell_id, levels = unique(as.character(cell_id)))) %>% 
+  arrange(source_id, cell_type_epi_custom) %>% 
+  mutate(cell_id2 = ordered(cell_id, levels = unique(as.character(cell_id)))) %>% 
+  group_by(gene) %>% 
+  mutate(scaled_value = scales::rescale(value),
+         patient_label = "Patient",
+         cluster_label = "TC cluster") 
+
+pheat <- ggplot(exprs_tbl, aes(cell_id, gene, fill = scaled_value)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_gradientn(colors = magma(9)[-1], na.value = "grey50") +
+  theme(axis.text.y = element_text()) +
+  labs(fill = "Scaled\nSCTransform\nvalue")
+
+pheat2 <- ggplot(exprs_tbl, aes(cell_id2, gene, fill = scaled_value)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_gradientn(colors = magma(9)[-1], na.value = "grey50") +
+  theme(axis.text.y = element_text()) +
+  labs(fill = "Scaled\nSCTransform\nvalue")
+
+plabel_patient <- ggplot(exprs_tbl, aes(cell_id, patient_label, fill = source_id)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_manual(values = cols.use) +
+  theme(axis.text.y = element_text())
+
+plabel_patient2 <- ggplot(exprs_tbl, aes(cell_id2, patient_label, fill = source_id)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_manual(values = cols.use) +
+  theme(axis.text.y = element_text())
+
+plabel_cluster <- ggplot(exprs_tbl, aes(cell_id, cluster_label, fill = cell_type_epi_custom)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_manual(values = setNames(epi_custom_anno$cell_type_epi_color, epi_custom_anno$cell_type_epi_custom)) +
+  theme(axis.text.y = element_text())
+
+plabel_cluster2 <- ggplot(exprs_tbl, aes(cell_id2, cluster_label, fill = cell_type_epi_custom)) +
+  geom_tile() + 
+  theme_void() +
+  scale_fill_manual(values = setNames(epi_custom_anno$cell_type_epi_color, epi_custom_anno$cell_type_epi_custom)) +
+  theme(axis.text.y = element_text())
+
+tc_heat1 <- plot_grid(
+  pheat, plabel_cluster, plabel_patient, 
+  ncol = 1, align = "v", rel_heights = c(0.94, 0.03, 0.03)
+)
+
+ggsave("_fig/TC_diff_heat.pdf", tc_heat1, width = 8, height = 10)
+
+tc_heat2 <- plot_grid(
+  pheat2, plabel_patient2, plabel_cluster2, 
+  ncol = 1, align = "v", rel_heights = c(0.94, 0.03, 0.03)
+)
+
+ggsave("_fig/TC_diff_heat2.pdf", tc_heat2, width = 8, height = 10)
 
 ```
 
@@ -288,7 +505,7 @@ f1ab_tbl <- bind_rows(
 base_size <- 16
 
 p1 <- ggplot(f1ab_tbl) +
-  geom_point(aes(umap50_1, umap50_2, color = source_id, size = main_cell_type)) +
+  geom_point(aes(UMAP_1, UMAP_2, color = source_id, size = main_cell_type)) +
   theme_void(base_size = base_size) +
   scale_size_manual(values = c(0.01, 0.01, 0.01), guide = "none") +
   scale_color_manual(values = cols.use) + 
@@ -301,7 +518,7 @@ p1 <- ggplot(f1ab_tbl) +
   labs(color = "Patient")
 
 p2 <- ggplot(f1ab_tbl) +
-  geom_point(aes(umap50_1, umap50_2, color = sample_origin, size = main_cell_type)) +
+  geom_point(aes(UMAP_1, UMAP_2, color = sample_origin, size = main_cell_type)) +
   theme_void(base_size = base_size) +
   scale_size_manual(values = c(0.01, 0.01, 0.01), guide = "none") +
   scale_color_manual(values = cols.use) + 
@@ -314,7 +531,7 @@ p2 <- ggplot(f1ab_tbl) +
   labs(color = "Sample\ntype")
 
 p3 <- ggplot(filter(f1ab_tbl, main_cell_type == "Epithelial")) +
-  geom_point(aes(umap50_1, umap50_2, color = cell_type_epi_custom, size = main_cell_type)) +
+  geom_point(aes(UMAP_1, UMAP_2, color = cell_type_epi_custom, size = main_cell_type)) +
   facet_grid(sample_origin~main_cell_type, switch = "y") +
   scale_size_manual(values = c(0.01), guide = "none") +
   scale_color_manual(values = set_names(epi_custom_anno$cell_type_epi_color, epi_custom_anno$cell_type_epi_custom), 
@@ -330,7 +547,7 @@ p3 <- ggplot(filter(f1ab_tbl, main_cell_type == "Epithelial")) +
   labs(color = "")
 
 p4 <- ggplot(filter(f1ab_tbl, main_cell_type == "Immune")) +
-  geom_point(aes(umap50_1, umap50_2, color = cell_type_imm_custom, size = main_cell_type)) +
+  geom_point(aes(UMAP_1, UMAP_2, color = cell_type_imm_custom, size = main_cell_type)) +
   facet_grid(sample_origin~main_cell_type, switch = "y") +
   scale_size_manual(values = c(0.01), guide = "none") +
   scale_color_manual(values = set_names(imm_custom_anno$cell_type_imm_color, imm_custom_anno$cell_type_imm_custom), 
@@ -346,10 +563,55 @@ p4 <- ggplot(filter(f1ab_tbl, main_cell_type == "Immune")) +
   labs(color = "")
 
 p5 <- ggplot(filter(f1ab_tbl, main_cell_type == "Stromal")) +
-  geom_point(aes(umap50_1, umap50_2, color = cell_type_str_custom, size = main_cell_type)) +
+  geom_point(aes(UMAP_1, UMAP_2, color = cell_type_str_custom, size = main_cell_type)) +
   facet_grid(sample_origin~main_cell_type, switch = "y") +
   scale_size_manual(values = c(0.01), guide = "none") +
   scale_color_manual(values = set_names(str_custom_anno$cell_type_str_color, str_custom_anno$cell_type_str_custom), na.value = "grey") + 
+  theme_void(base_size = base_size) +
+  theme(legend.position = "bottom",
+        legend.justification = "top",
+        legend.key.size = unit(0.01, "npc"),
+        plot.margin = margin(0.02, 0.01, 0.02, 0.01, "npc"),
+        panel.border = element_rect(fill = NA, color = "black", linetype = 1, size = 1),
+        strip.text.y = element_text(angle = 270)) +
+  guides(color = guide_legend(ncol = 2)) +
+  labs(color = "")
+
+p3p <- ggplot(filter(f1ab_tbl, main_cell_type == "Epithelial")) +
+  geom_point(aes(UMAP_1, UMAP_2, color = source_id, size = main_cell_type)) +
+  facet_grid(sample_origin~main_cell_type, switch = "y") +
+  scale_size_manual(values = c(0.01), guide = "none") +
+  scale_color_manual(values = cols.use) + 
+  theme_void(base_size = base_size) +
+  theme(legend.position = "bottom",
+        legend.justification = "top",
+        legend.key.size = unit(0.01, "npc"),
+        plot.margin = margin(0.02, 0.01, 0.02, 0.01, "npc"),
+        panel.border = element_rect(fill = NA, color = "black", linetype = 1, size = 1),
+        strip.text.y = element_text(angle = 270)) +
+  guides(color = guide_legend(ncol = 2)) +
+  labs(color = "")
+
+p4p <- ggplot(filter(f1ab_tbl, main_cell_type == "Immune")) +
+  geom_point(aes(UMAP_1, UMAP_2, color = source_id, size = main_cell_type)) +
+  facet_grid(sample_origin~main_cell_type, switch = "y") +
+  scale_size_manual(values = c(0.01), guide = "none") +
+  scale_color_manual(values = cols.use) + 
+  theme_void(base_size = base_size) +
+  theme(legend.position = "bottom",
+        legend.justification = "top",
+        legend.key.size = unit(0.01, "npc"),
+        plot.margin = margin(0.02, 0.01, 0.02, 0.01, "npc"),
+        panel.border = element_rect(fill = NA, color = "black", linetype = 1, size = 1),
+        strip.text.y = element_text(angle = 270)) +
+  guides(color = guide_legend(ncol = 2)) +
+  labs(color = "")
+
+p5p <- ggplot(filter(f1ab_tbl, main_cell_type == "Stromal")) +
+  geom_point(aes(UMAP_1, UMAP_2, color = source_id, size = main_cell_type)) +
+  facet_grid(sample_origin~main_cell_type, switch = "y") +
+  scale_size_manual(values = c(0.01), guide = "none") +
+  scale_color_manual(values = cols.use) + 
   theme_void(base_size = base_size) +
   theme(legend.position = "bottom",
         legend.justification = "top",
@@ -494,8 +756,12 @@ ggdraw() +
   draw_plot(p1d, 0, 0, 0.91, 0.075) +
   draw_plot_label(c("A", "B", "C", "D"), c(0, 0, 0, 0), c(1.002, 0.8, 0.593, 0.09))
 
-ggsave("_fig/f1abcd_strict_pc50.png", width = 10, height = 15)
-ggsave("_fig/f1abcd_strict_pc50.pdf", width = 10, height = 15)
+ggsave("_fig/f1abcd_strict.png", width = 10, height = 15)
+ggsave("_fig/f1abcd_strict.pdf", width = 10, height = 15)
+
+plot_grid(p3p, p4p, p5p, nrow = 1, align = "hv")
+ggsave("_fig/f1abcd_strict_patient.png", width = 10, height = 7)
+ggsave("_fig/f1abcd_strict_patient.pdf", width = 10, height = 7)
 
 
 ```
@@ -890,6 +1156,40 @@ ggsave("_fig/f2_sub_strict_imm.pdf", width = 16, height = 10)
 
 ```{r}
 
+gois <- c("PI3K.pathway", "MAPK.pathway")
+
+gois <- c("HALLMARK_DNA_REPAIR1", "Wnt.targets1", "WYR.Serra1")
+
+gois <- c("HALLMARK_DNA_REPAIR1", "PI3K.pathway", "Wnt.targets1", "WYR.Serra1", "MAPK.pathway")
+
+plot_data <- FetchData(seu_epi_pri, c(gois, "sample_id", "source_id", "sample_origin", "cell_type_epi_custom")) %>% 
+    as_tibble() %>% 
+    gather(key, value, -sample_id, -source_id, 
+           -sample_origin, -cell_type_epi_custom) %>%
+    mutate(key = ordered(key, levels = gois)) %>% 
+    filter(sample_origin == "Tumor", 
+           str_detect(cell_type_epi_custom, "^TC")) %>%
+    group_by(key) %>% 
+    mutate(value = scales::rescale(value)) %>%
+    group_by(source_id, key, cell_type_epi_custom) %>%
+    summarise(mean_value = mean(value)) %>% 
+    ungroup %>%
+    mutate(key = ordered(key, levels = gois))
+
+ggplot(plot_data) +
+  geom_tile(aes(cell_type_epi_custom, fct_rev(source_id), fill = mean_value)) +
+  facet_grid(~key) +
+  scale_fill_gradientn(colours = c(magma(5)), 
+                          breaks = c(0, 0.5, 1),
+                          labels = c("0", "0.5", "1"), 
+                          limits = c(0, 1)
+                          ) +
+  theme_void()
+
+```
+
+```{r}
+
 str_markers <- read_tsv("_data/_tab/cell_type_markers_str.tsv") %>% 
   group_by(cell_type_str) %>% 
   slice(1) %$%
@@ -915,8 +1215,8 @@ plot_wrapper <- function(seu_obj, gois, by.case, pt.size = 1) {
     gather(key, value, -sample_id, -source_id, 
            -sample_origin, -UMAP_1, -UMAP_2) %>%
     mutate(key = ordered(key, levels = gois)) %>% 
-    group_by(key) %>% 
-    mutate(value = scales::rescale(value))
+    group_by(key) #%>% 
+    #mutate(value = scales::rescale(value))
     
   p1 <- ggplot(plot_data) +
     geom_point(aes(UMAP_1, UMAP_2), color = "grey90", size = pt.size, 
@@ -930,8 +1230,11 @@ plot_wrapper <- function(seu_obj, gois, by.case, pt.size = 1) {
     geom_point(aes(UMAP_1, UMAP_2, color = value), size = pt.size, 
                data = filter(plot_data, value > 0.75, value <= 1)) +
     coord_fixed() +
-    scale_color_gradientn(colours = c(magma(5)), breaks = c(0, 0.5, 1),
-                          labels = c("0", "0.5", "1"), limits = c(0, 1)) +
+    scale_color_gradientn(colours = c(magma(5)), 
+                          breaks = c(0, 0.5, 1),
+                          labels = c("0", "0.5", "1"), 
+                          limits = c(0, 1)
+                          ) +
     theme_void() +
     theme(strip.text.y = element_text(angle = 270)) +
     labs(color = "Scaled\nscTransform\nvalues")
@@ -966,6 +1269,35 @@ m_str <- plot_wrapper(seu_str_pri, str_markers, by.case = T, pt.size = 0.01)
 pw_str <- plot_wrapper(seu_str_pri, mypws, by.case = T, pt.size = 0.01)
 
 tc_epi <- plot_wrapper(seu_epi_pri, c("TUBA1B", "MKI67", "LYZ", "CXCR4", "SRGN", "VIM", "MMP7", "S100A11", "S100A4"), by.case = T, pt.size = 0.01)
+
+m_imm_custom <- plot_wrapper(seu_imm_pri, c("IGLV1-44", "DDB2"), by.case = T, pt.size = 0.01)
+
+m_epi_custom <- plot_wrapper(seu_epi_pri, c("LGR5", "OLFM4", "MMP7", "S100A4", "CD44", "EPHB2", "SLC28A2", "B3GNT7", "XRCC2", "TFF3", "VIM"), by.case = T, pt.size = 0.01)
+
+ggsave("_fig/f1_markers_epi_pi3k.png", plot_wrapper(seu_epi_pri, c("PI3K.pathway"), by.case = T, pt.size = 0.01)$p1,
+       width = 3, height = 4)
+
+ggsave("_fig/f1_markers_epi_yap.png", plot_wrapper(seu_epi_pri, c("WYR.Serra1"), by.case = T, pt.size = 0.01)$p1,
+       width = 3, height = 4)
+
+
+m_epi_hall <- plot_wrapper(seu_epi_pri, c("HALLMARK_DNA_REPAIR1", "HALLMARK_G2M_CHECKPOINT1", "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION1", "HALLMARK_KRAS_SIGNALING_UP1", "HALLMARK_MYC_TARGETS_V21", "HALLMARK_MTORC1_SIGNALING1", "HALLMARK_P53_PATHWAY1", "HALLMARK_PI3K_AKT_MTOR_SIGNALING1", "HALLMARK_TGF_BETA_SIGNALING1", "HALLMARK_WNT_BETA_CATENIN_SIGNALING1"), by.case = T, pt.size = 0.01)
+
+m_epi_isc <- plot_wrapper(seu_epi_pri, c("Lgr5_ISC.Merlos1", "EphB2_ISC.Merlos1", "Late_TA1", "Lgr5_ISC.Munoz1", "IF.Hlubek1", "EYR.Gregorieff1", "WYR.Serra1"), by.case = T, pt.size = 0.01)
+
+ggsave("_fig/f1_markers_epi_custom.png", m_epi_custom$p1, width = 20, height = 4)
+
+ggsave("_fig/f1_markers_epi_hallmark.png", m_epi_hall$p1,
+       width = 20, height = 4)
+
+ggsave("_fig/f1_markers_epi_isc.png", m_epi_isc$p1,
+       width = 20, height = 4)
+
+ggsave("_fig/f1_markers_imm_custom.png", m_imm_custom$p1,
+       width = 5, height = 4)
+
+
+m_imm_custom
 
 m_epi$p1
 ggsave("_fig/f1_markers_epi.png", width = 11.5, height = 4)
@@ -1100,59 +1432,32 @@ lr_plot_imm_rec$p1
 ggsave("_fig/f3_imm_receptors.png", width = 20, height = 4)
 
 
-ggplot(filter(lr_top_epi_tbl, key == "receptors"), aes(cell_type_epi_custom, Gene, fill = Tumor)) +
+ggplot(gather(filter(lr_top_epi_tbl, key == "receptors"), sample_origin, value, -cell_type_epi_custom, -Gene, -key, -Pathway, -diff), aes(cell_type_epi_custom, Gene, fill = value)) +
   geom_tile() +
   scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
+  facet_grid(Pathway~sample_origin, scales = "free", space = "free") +
   theme_cowplot2() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Tumor")
-ggsave("_fig/f3_epi_receptors_exprs_tumor.pdf", width = 6, height = 16)
+  labs(fill = "Avg. exprs.\n(SCTransform)", x = "Cell type")
+ggsave("_fig/f3_epi_receptors_exprs.pdf", width = 9, height = 16)
 
-ggplot(filter(lr_top_str_tbl, key == "ligands"), aes(cell_type_str_custom, Gene, fill = Tumor)) +
+ggplot(gather(filter(lr_top_str_tbl, key == "ligands"), sample_origin, value, -cell_type_str_custom, -Gene, -key, -Pathway, -diff), aes(cell_type_str_custom, Gene, fill = value)) +
   geom_tile() +
   scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
+  facet_grid(Pathway~sample_origin, scales = "free", space = "free") +
   theme_cowplot2() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Tumor")
-ggsave("_fig/f3_str_ligands_exprs_tumor.pdf", width = 5, height = 16)
+  labs(fill = "Avg. exprs.\n(SCTransform)", x = "Cell type")
+ggsave("_fig/f3_str_ligands_exprs.pdf", width = 7, height = 16)
 
-ggplot(filter(lr_top_imm_tbl, key == "ligands"), aes(cell_type_imm_custom, Gene, fill = Tumor)) +
+ggplot(gather(filter(lr_top_imm_tbl, key == "ligands"), sample_origin, value, -cell_type_imm_custom, -Gene, -key, -Pathway, -diff), aes(cell_type_imm_custom, Gene, fill = value)) +
   geom_tile() +
   scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
+  facet_grid(Pathway~sample_origin, scales = "free", space = "free") +
   theme_cowplot2() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Tumor")
-ggsave("_fig/f3_imm_ligands_exprs_tumor.pdf", width = 4, height = 16)
-
-ggplot(filter(lr_top_epi_tbl, key == "receptors"), aes(cell_type_epi_custom, Gene, fill = Normal)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
-  theme_cowplot2() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Normal")
-ggsave("_fig/f3_epi_receptors_exprs_normal.pdf", width = 6, height = 16)
-
-ggplot(filter(lr_top_str_tbl, key == "ligands"), aes(cell_type_str_custom, Gene, fill = Normal)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
-  theme_cowplot2() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Normal")
-ggsave("_fig/f3_str_ligands_exprs_normal.pdf", width = 5, height = 16)
-
-ggplot(filter(lr_top_imm_tbl, key == "ligands"), aes(cell_type_imm_custom, Gene, fill = Normal)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "steelblue", high = "red", mid = "white", midpoint = 0, na.value = "grey50") +
-  facet_grid(Pathway~., scales = "free", space = "free") +
-  theme_cowplot2() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
-  labs(fill = "Avg. Exprs.\nin Tumor")
-ggsave("_fig/f3_imm_ligands_exprs_normal.pdf", width = 4, height = 16)
+  labs(fill = "Avg. exprs.\n(SCTransform)", x = "Cell type")
+ggsave("_fig/f3_imm_ligands_exprs.pdf", width = 10, height = 16)
 
 
 ```
@@ -1325,28 +1630,7 @@ ggsave("_fig/hotcold_str.pdf", height = 6.5, width = 8)
 
 ```
 
-## infercnv
 
-```{r}
-
-seu_epi_pri$sample_cell_type <- paste0(seu_epi_pri$sample_origin, "_", seu_epi_pri$cell_type_epi_custom)
-write.table(enframe(seu_epi_pri$sample_cell_type), "_data/infercnv/annotation.txt", sep="\t", col.names=F,row.names=F)
-
-cnv_obj <- infercnv::CreateInfercnvObject(
-  raw_counts_matrix = seu_epi_pri@assays$RNA@counts,
-  annotations_file = "_data/infercnv/annotation.txt",
-  gene_order_file = "_data/infercnv/gencode_v21_gen_pos.complete.txt",
-  ref_group_names = sort(unique(grep("Normal", seu_epi_pri$sample_cell_type, value = T)))
-) 
-
-cnv_obj <- infercnv::run(
-  cnv_obj, cutoff=0.1, out_dir="_data/infercnv/tmp", 
-  cluster_by_groups=T, denoise=T, HMM=T, 
-  num_threads=parallel::detectCores()
-)
-write_rds(cnv_obj, "_data/infercnv/infercnv_results.rds")
-
-```
 
 ## Organoid cell type label transfer
             
